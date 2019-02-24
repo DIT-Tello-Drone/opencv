@@ -105,17 +105,38 @@ class ObjectDetectionPredict():
         """
         image = image_file_path
         im_width, im_height = image.size
-        print("1: " ,im_width, im_height)
-        image = image.resize((int(im_width/2), int(im_height/2)))
-        #print('image size : ', image.size)
-        im_width, im_height = image.size
-        print("2: " ,im_width, im_height)
-        #im_width /= 2
-        #im_height /= 2
-        image_np = np.array(image.getdata())[:,0:3].reshape((int(im_height), int(im_width), 3)).astype(np.uint8)
-        #0.5
+        #0:3을 0으로 수정. reshape  3을 1로 수정
 
-        #image_np = np.array(image.getdata())[:,0:3].reshape((im_height, im_width, 3)).astype(np.uint8)
+        # Traceback (most recent call last):
+        #   File "prediction_test_GRAY.py", line 146, in <module>
+        #     scores, classes, img, boxes = prediction_class.predict_single_image(pil_im)
+        #   File "prediction_test_GRAY.py", line 109, in predict_single_image
+        #     image_np = np.array(image.getdata())[0].reshape((im_height, im_width, 1)).astype(np.uint8)
+        # ValueError: cannot reshape array of size 1 into shape (480,640,1)
+        # [ WARN:0] terminating async callback
+
+        # reshape 1을 3으로 수정
+
+        # Traceback (most recent call last):
+        #   File "prediction_test_GRAY.py", line 159, in <module>
+        #     scores, classes, img, boxes = prediction_class.predict_single_image(pil_im)
+        #   File "prediction_test_GRAY.py", line 122, in predict_single_image
+        #     image_np = np.array(image.getdata())[0].reshape((im_height, im_width, 3)).astype(np.uint8)
+        # ValueError: cannot reshape array of size 1 into shape (480,640,3)
+        # [ WARN:0] terminating async callback
+
+        print("여기부터")
+        print(np.array(image.getdata()).shape)
+        print("np.array(image.getdata())")
+        print(np.array(image.getdata()))
+        print("np.array(image.getdata())[0]")
+        print(np.array(image.getdata())[0])
+        print("np.array(image.getdata())[:,0]")
+        print(np.array(image.getdata())[:])
+
+        print("여기까지")
+        image_np = np.array(image.getdata())[:].reshape((im_height, im_width)).astype(np.uint8)
+
         image_np_expanded = np.expand_dims(image_np, axis=0)
 
         (boxes, scores, classes, num_detections) = self.sess.run(
@@ -147,20 +168,39 @@ prediction_class = ObjectDetectionPredict(model_name=MODEL_NAME)
 cap = cv2.VideoCapture(0)
 while(cap.isOpened()):
     _,cv2_im = cap.read()
-    cv2_im = cv2.cvtColor(cv2_im,cv2.COLOR_BGR2RGB)
-    pil_im = Image.fromarray(cv2_im)
-    # pil_im.show()
+    # cv2_im = cv2.cvtColor(cv2_im,cv2.COLOR_BGR2RGB)
 
-    timer = cv2.getTickCount()
+    cv2_im = cv2.cvtColor(cv2_im,cv2.COLOR_BGR2GRAY)
+    print(cv2_im)
+    # GRAY
+    # [[159 159 159 ... 159 159 159]
+    #  [159 159 159 ... 159 159 159]
+    #  [159 159 159 ... 159 159 159]
+    #  ...
+    #  [159 159 159 ... 159 159 159]
+    #  [159 159 159 ... 159 159 159]
+    #  [159 159 159 ... 159 159 159]]
+
+    print(cv2_im.shape)
+
+    # (480, 640) cv2.COLOR_BGR2GRAY
+    #(480, 640, 3) cv2.COLOR_BGR2RGB
+    pil_im = Image.fromarray(cv2_im)
+    # print(pil_im)
+
+    # <PIL.Image.Image image mode=L size=640x480 at 0x1D1AF627908>
+
+
+
+
+
+    # pil_im.show()
 
     #### boxes are in [ymin. xmin. ymax, xmax] format
     scores, classes, img, boxes = prediction_class.predict_single_image(pil_im)
-    opencvImage = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    opencvImage = cv2.cvtColor(np.array(img), cv2.COLOR_GRAY2BGR)
 
-    # Calculate Frames per second (FPS)
-    fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer)
-    print('FPS : ' + str(float(fps)))
-    cv2.putText(opencvImage, "FPS : " + str(int(fps)), (50,20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50), 2)
+
     cv2.imshow('opencvImage', opencvImage)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):

@@ -1,57 +1,69 @@
-import os
+#
+# Tello Python3 Control Demo
+#
+# http://www.ryzerobotics.com/
+#
+# 1/1/2018
+
+
 import sys
+import traceback
+import tellopy
+import av
+import cv2.cv2 as cv2
 import time
+from time import sleep
+
+import os
 import random
-import cv2
 import tensorflow as tf
 import numpy as np
-import time
 from PIL import Image, ImageDraw
 from object_detection.utils import label_map_util, visualization_utils
 import glob
 from six.moves import urllib
 import tarfile
 
-##### Constants
+import threading
+
 DOWNLOAD_BASE = 'http://download.tensorflow.org/models/object_detection/'
-MODEL_NAME = "ssd_mobilenet_v1_coco_2017_11_17"
+MODEL_NAME = "C:\\Users\\Hyungi\\Desktop\\ssd_mobilenet_v1_coco_2017_11_17"
 PATH_TO_OBJECT_DETECTION_REPO = "C:\\Users\\Hyungi\\Desktop\\tensorflow\\models\\research\\object_detection\\"  # Insert path to tensorflow object detection repository - models/research/object_detection/
 PATH_TO_LABELS = PATH_TO_OBJECT_DETECTION_REPO + "data/mscoco_label_map.pbtxt"
 NUM_CLASSES = 1
 
-##### config variables to set
 threshold = 0.5
-# test_image_dir = ""    # Insert path to directory containing test images
 
-def download_model(model_name):
-    """Download the model from tensorflow model zoo
-    Args:
-        model_name: name of model to download
-    """
-    model_file = model_name + '.tar.gz'
-    if os.path.isfile(model_name + '/frozen_inference_graph.pb'):
-        print("File already downloaded")
-        return
-    opener = urllib.request.URLopener()
-    try:
-        print("Downloading Model")
-        opener.retrieve(DOWNLOAD_BASE + model_file, model_file)
-        print("Extracting Model")
-        tar_file = tarfile.open(model_file)
-        for file in tar_file.getmembers():
-            file_name = os.path.basename(file.name)
-            if 'frozen_inference_graph.pb' in file_name:
-                tar_file.extract(file, os.getcwd())
-        print("Done")
-    except:
-        raise Exception("Not able to download model, please check the model name")
-
+def handler(event, sender, data, **args):
+    drone = sender
+    if event is drone.EVENT_FLIGHT_DATA:
+        print(data)
 
 def draw_rectangle(draw, coordinates, color, width=1):
     for i in range(width):
         rect_start = (coordinates[1] - i, coordinates[0] - i)
         rect_end = (coordinates[3] + i, coordinates[2] + i)
         draw.rectangle((rect_start, rect_end), outline = color)
+
+def droneControl():
+    global drone
+    while True:
+        key = input()
+        if key == 'q':
+            drone.down(50)
+        if key == 'w':
+            drone.forward(20)
+        if key == 's':
+            drone.backward(20)
+        if key == 'a':
+            drone.left(10)
+        if key == 'd':
+            drone.right(10)
+        if key == 't':
+            drone.forward(0)
+        if key == 'l':
+            drone.land()
+
 
 
 class ObjectDetectionPredict():
@@ -63,10 +75,10 @@ class ObjectDetectionPredict():
         """ Downloads, initialize the tf model graph and stores in Memory
         for prediction
         """
-        download_model(model_name)
-        print("before")
+        # download_model(model_name)
+        # print("before")
         label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
-        print("after")
+        # print("after")
         categories = label_map_util.convert_label_map_to_categories(label_map,
                                                                     max_num_classes=NUM_CLASSES, use_display_name=True)
         self.category_index = label_map_util.create_category_index(categories)
@@ -93,9 +105,6 @@ class ObjectDetectionPredict():
         self.classes = self.detection_graph.get_operation_by_name('import/detection_classes')
         self.num_detections = self.detection_graph.get_operation_by_name('import/num_detections')
         return 0
-
-
-
 
 
     def predict_single_image(self, image_file_path):
@@ -134,39 +143,95 @@ class ObjectDetectionPredict():
             scores, boxes, classes = [], [], []
 
         print("Number of detections: {}".format(len(scores)))
-
-
         print("\n".join("{0:<20s}: {1:.1f}%".format(self.category_index[c]['name'], s*100.) for (c, s, box) in zip(classes, scores, boxes)))
-
         return scores, classes, image, boxes
 
 
+drone = tellopy.Tello()
+def main():
+    global drone
+    prediction_class = ObjectDetectionPredict(model_name=MODEL_NAME)
 
-prediction_class = ObjectDetectionPredict(model_name=MODEL_NAME)
+    try:
+        drone.subscribe(drone.EVENT_FLIGHT_DATA, handler)
+        drone.connect()
+        drone.wait_for_connection(60.0)
 
-cap = cv2.VideoCapture(0)
-while(cap.isOpened()):
-    _,cv2_im = cap.read()
-    cv2_im = cv2.cvtColor(cv2_im,cv2.COLOR_BGR2RGB)
-    pil_im = Image.fromarray(cv2_im)
-    # pil_im.show()
+        container = av.open(drone.get_video_stream())
+        # skip first 300 frames
+        frame_skip = 300
+        bbox = (287, 23, 86, 320)
+        c = 0
 
-    timer = cv2.getTickCount()
+        drone.takeoff()
+        sleep(5)
 
-    #### boxes are in [ymin. xmin. ymax, xmax] format
-    scores, classes, img, boxes = prediction_class.predict_single_image(pil_im)
-    opencvImage = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+        th = threading.Thread(target=droneControl)
+        th.start()
 
-    # Calculate Frames per second (FPS)
-    fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer)
-    print('FPS : ' + str(float(fps)))
-    cv2.putText(opencvImage, "FPS : " + str(int(fps)), (50,20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50), 2)
-    cv2.imshow('opencvImage', opencvImage)
+        landflag = False
+        while True:
+            print("******************\nNEW WHILE\n******************** ")
+            for frame in container.decode(video=0):
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-      break
-    # image_name, ext = pil_im.rsplit('.', 1)
-    # new_image_name = image_name + "_prediction." + ext
-    # img.save(new_image_name)
+                if 0 < frame_skip:
+                    frame_skip = frame_skip - 1
+                    continue
 
-prediction_class.sess.close()
+                if c < 50 :
+                    c += 1
+                    continue
+                else :
+                    c = 0
+                #cv2_im = cv2.cvtColor(numpy.array(frame.to_image()), cv2.COLOR_RGB2BGR)
+                #cv2_im = cv2.cvtColor(cv2_im,cv2.COLOR_BGR2RGB)
+                #pil_im = Image.fromarray(cv2_im)
+                pil_im = Image.fromarray(np.array(frame.to_image()))
+                # pil_im.show()
+
+                timer = cv2.getTickCount()
+
+                #### boxes are in [ymin. xmin. ymax, xmax] format
+                scores, classes, img, boxes = prediction_class.predict_single_image(pil_im)
+                opencvImage = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+
+                # Calculate Frames per second (FPS)
+                fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer)
+                print('FPS : ' + str(float(fps)))
+                cv2.putText(opencvImage, "FPS : " + str(int(fps)), (50,20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50), 2)
+                cv2.imshow('opencvImage', opencvImage)
+
+
+
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                  landflag = True
+                  cv2.destroyAllWindows()
+                  break
+            if landflag:
+                print('down')
+                drone.down(50)
+                sleep(3)
+                drone.land()
+                sleep(1)
+                break
+
+                # image_name, ext = pil_im.rsplit('.', 1)
+                # new_image_name = image_name + "_prediction." + ext
+                # img.save(new_image_name)
+
+        prediction_class.sess.close()
+
+        print('down again')
+        drone.land()
+        sleep(1)
+
+    except Exception as ex:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback.print_exception(exc_type, exc_value, exc_traceback)
+        print(ex)
+    finally:
+        drone.quit()
+        cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    main()
