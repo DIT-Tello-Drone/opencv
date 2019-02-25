@@ -37,7 +37,7 @@ threshold = 0.5
 def handler(event, sender, data, **args):
     drone = sender
     # if event is drone.EVENT_FLIGHT_DATA:
-    #     # print(data)
+        # print(data)
 
 def draw_rectangle(draw, coordinates, color, width=1):
     for i in range(width):
@@ -111,27 +111,30 @@ class ObjectDetectionPredict():
         Args:
         image_file_path: Full path of image file to predict
         """
-        image = image_file_path
-        im_width, im_height = image.size
-        # print("original_image: ", image)
-        # print("original_im_width: ", im_width,"original_im_height: ", im_height )
-        # print("1: " ,im_width, im_height)
-        image = image.resize((int(im_width/2), int(im_height/2)))
-        im_width, im_height = image.size
-        # print("resized_image: ", image)
-        # print("resized_im_width: ", im_width,"resized_im_height:", im_height )
-        # print("2: " ,im_width, im_height)
+        image_frame = image_file_path
 
-        print("np.array(image.getdata())[:,0:3]:",np.array(image.getdata())[:,0:3])
-        image_np = np.array(image.getdata())[:,0:3].reshape((int(im_height), int(im_width), 3)).astype(np.uint8)
+        im_width, im_height = image_frame.shape[:2]
+        # print("original_image_frame: ", image_frame)
+        # print("original_im_width: ", im_width, "original_im_height: ", im_height )
+
+
+
+        image_frame = cv2.resize(image_frame, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+        im_width, im_height = image_frame.shape[:2]
+        # print("resized_image_frame: ", image_frame)
+        # print("resized_im_width: ", im_width, "resized_im_height:" ,im_height )
+
+        #지움 (int(im_width/2), int(im_height/2)))
+        # print(image_frame.shape)
+        print("image_frame[:, 0:3]: ",image_frame[:, 0:3])
+        image_np = image_frame[:, 0:3].reshape((int(im_height), int(im_width), 3)).astype(np.uint8)#테스트
+        # image_np = np.array(image_frame.getdata())[:,0:3].reshape((int(im_height), int(im_width), 3)).astype(np.uint8)
         #
         #
-        image_np_expanded = np.expand_dims(image_np, axis=0)
-        # print(image_np.shape)
-        # print(image_np_expanded.shape)
+        image_np_expanded = np.expand_dims(image_np, axis=0)#테스트
         print("image_np_expanded:", image_np_expanded)
         print("image_np_expanded.shape:", image_np_expanded)
-
+        # image_np_expanded = np.expand_dims(image_np, axis=0)
         boxes, scores, classes, num_detections = 0, 0, 0, 0#임시로 준 값. 지워도 됨
         # (boxes, scores, classes, num_detections) = self.sess.run(
         #     [self.boxes.outputs[0], self.scores.outputs[0], self.classes.outputs[0], self.num_detections.outputs[0]],
@@ -142,7 +145,7 @@ class ObjectDetectionPredict():
         #                                             for c, s, b in zip(classes[0], scores[0], boxes[0]) if (s > threshold and c in self.category_index)]
         # if correct_prediction:
         #     scores, boxes, classes = zip(*correct_prediction)
-        #     draw = ImageDraw.Draw(image)
+        #     draw = ImageDraw.Draw(image_frame)
         #     for s, b, c in correct_prediction:
         #         draw_rectangle(draw, b, 'red', 5)
         # else:
@@ -150,7 +153,7 @@ class ObjectDetectionPredict():
 
         # print("Number of detections: {}".format(len(scores)))
         # print("\n".join("{0:<20s}: {1:.1f}%".format(self.category_index[c]['name'], s*100.) for (c, s, box) in zip(classes, scores, boxes)))
-        return scores, classes, image, boxes
+        return scores, classes, image_frame, boxes
 
 
 drone = tellopy.Tello()
@@ -190,7 +193,7 @@ def main():
                 else :
                     c = 0
 
-                pil_im = Image.fromarray(np.array(frame.to_image()))
+                pil_im = np.array(frame.to_image())
                 print("pil_im :", pil_im)
 
                 timer = cv2.getTickCount()
